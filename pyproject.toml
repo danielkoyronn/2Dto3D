@@ -1,0 +1,21 @@
+[project]
+name = "cad-to-process-layout-assistant"
+version = "0.1.0"
+description = "DXF preprocessing, frame extraction, validation, and static factory environment generation for Process Simulate"
+requires-python = ">=3.10"
+dependencies = [
+    "ezdxf>=1.1",
+    "numpy>=1.26",
+    "shapely>=2.0",
+]
+
+[project.optional-dependencies]
+step = [
+    "cadquery>=2.4",
+]
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
