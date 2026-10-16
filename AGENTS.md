@@ -4,64 +4,69 @@
 CAD to Process Layout Assistant
 
 ## Final goal
-Convert a 2D factory DXF into the positioning data and static 3D environment needed to build a factory efficiently in Siemens Tecnomatix Process Simulate.
+The primary deliverable is now **one Process Simulate 2512 .NET Script** that performs the whole reduced workflow in a single run. Do not require a separate Python correction stage, CSV handoff, or separate frame/fence placement scripts for the final user workflow.
 
-The project is NOT intended to guess arbitrary Process Simulate resources or fully automate simulation engineering. A limited exception is allowed for explicit, user-approved resource placement: when the user supplies a known COJT robot package and verified robot Frames already exist, the tool may batch-place that known package on those Frames and align the robot Baseframe exactly.
+The canonical script is:
 
-## Core responsibilities
-1. Read and analyze factory DXF files.
-2. Detect relevant equipment such as robots, fixtures, TTRs, conveyors, and other locatable resources.
-3. Determine equipment/base-frame center coordinates from CAD geometry.
-4. Extract or infer X, Y and Rz from reliable DXF entities/block transforms.
-5. Generate consistent frame names.
-6. Export frame data to CSV/XLSX-compatible tables.
-7. Generate a visual frame-check output over the source CAD layout.
-8. Generate Process Simulate Native Frame creation data/scripts where practical.
-9. Convert static factory environment geometry (fence, floor, wall, column, platform) from 2D CAD to 3D STEP.
-10. Validate CAD coordinates against Process Simulate frame coordinates.
-11. When explicitly configured by the user, batch-place a known articulated COJT robot package on verified robot Frames and align its actual `Robot.Baseframe` to the target Frame. Do not infer the robot model automatically.
-12. Apply user-verified CAD-text correction rules (for example MID_MAIN BM/FM station maps and bare R labels) as a deterministic post-processing stage, preserving original values for audit and regenerating downstream frame data/scripts from the corrected table.
+`process_simulate/AllInOneDxfRobotFence.cs`
 
-## Explicitly out of scope
-Do NOT make these core project goals:
-- Automatic guessing/mapping of CAD equipment to COJT/JT/STEP resources without explicit user configuration.
-- Automatic selection of robot models based only on CAD appearance/color.
-- Automatic complete 3D factory assembly.
-- One-click DXF-to-complete-Process-Simulate-factory generation.
-- Robot kinematics authoring, joint limits, TCP/tool setup.
-- Fixture mechanism/kinematics.
-- Collision checking.
-- Robot paths, operations, weld points, cycle-time simulation.
+## Required single-script workflow
+1. Read the factory **ASCII DXF directly** from the configured local path.
+2. Detect Robot / Track-Robot / Safe-Fence placement data from DXF entities.
+3. Apply the already verified 1013 naming/correction rules, including MID_MAIN BM/FM station mapping and nearby bare `Rxx` labels where available.
+4. Create all required Process Simulate Native Frames.
+5. Insert one approved Robot COJT template at world origin `(0,0,0)`.
+6. Instantiate the same approved Robot package at every Robot Frame and align its real `Robot.Baseframe` to the target Frame.
+7. Insert one supplied Safe-Fence JT template at world origin `(0,0,0)`.
+8. Instantiate the same Safe-Fence JT at every Fence Frame using the Fence Frame transform plus explicit calibration offsets if needed.
+9. Report create/skip/fail counts and reject suspicious coordinates instead of silently placing resources incorrectly.
 
-## Design principle
-CAD is the master layout.
-Process Simulate is the master simulation environment.
+## Naming standard
+- Normal robot frame: `<AREA>_ROBOT_<NNN>`
+- Track robot frame: `<AREA>_TRACK_ROBOT_<NNN>`
+- Corrected MID_MAIN robot: `MID_MAIN_<STATION>_ROBOT_R<NN>` when a unique nearby CAD `Rxx` label is available
+- MID_MAIN fallback: `MID_MAIN_<STATION>_ROBOT_<NNN>`
+- Fence frame: `<AREA>_FENCE_<NNN>`
+- Robot instance: `AUTO_<FRAME_NAME>_<ROBOT_MODEL_TAG>`
+- Fence instance: `AUTO_<FRAME_NAME>_<FENCE_MODEL_TAG>`
 
-Automate repetitive CAD interpretation, verified frame correction, frame preparation, and explicitly approved repetitive placement. Keep engineering decisions and Process-native simulation work in Process Simulate.
+## Current approved resources
+- Robot package: `BSR_OP10_R01_KR210_R2700.cojt`
+- Safe Fence model: `BSL_SF-0044.jt`
 
-## Coordinate rules
-- Preserve original factory CAD coordinates. Do not move the whole factory to (0,0) merely for convenience.
-- Robot frame origin should correspond to the actual robot base center defined by the CAD layout, not an arbitrary bounding-box center.
-- X/Y should come from CAD whenever possible.
-- Rz should come from block/entity rotation or another deterministic CAD rule whenever possible.
-- Do not guess Z/Rx/Ry from 2D CAD. These require explicit configuration or Process/engineering reference data.
-- Always provide a visual validation layer/output so detected frames can be checked before use.
-- If an audited correction stage repairs clearly corrupt 2D-derived data, preserve the original value and record the correction source/remark in the output table.
-- For batch robot placement, move the COJT root as one unit and preserve the package's internal links/joints. Align the package's real `Robot.Baseframe` to the target Frame and validate residual position/angle error.
+Paths are local-machine configuration values at the top of the .NET script and must not be guessed if the user changes resources.
 
-## Development priorities
-P0: DXF -> robot/base frames -> visual frame check -> CSV
-P0: Verified MID_MAIN BM/FM station/robot-label correction -> corrected CSV -> regenerated PS frame script
-P1: Improve fixture/TTR/conveyor frame detection
-P1: Batch Process Simulate Native Frame creation workflow
-P1: Explicit batch placement of a user-approved robot COJT package on verified robot Frames
-P1: Fence/environment -> STEP
-P2: CAD <-> Process frame validation report
-P3: GUI only after the core pipeline is reliable
+## Robot placement rule
+Move the complete imported COJT root as one unit. Preserve the package's internal links/joints. Align the imported Robot's actual `Robot.Baseframe` to the target TxFrame and validate residual position/angle error.
 
-## Acceptance principle
-A feature is worth adding only if it clearly reduces manual factory-building time without reducing engineering accuracy in Process Simulate.
+## Fence placement rule
+The JT has no Robot Baseframe. Treat its JT root as the placement origin and apply the target Fence Frame transform. Keep explicit `FenceOffsetX/Y/Z/RzDeg` constants for one-time origin calibration.
 
-For correction stages, prefer deterministic rules that were explicitly verified against CAD. If a text-to-frame match is ambiguous, preserve the original identifier rather than guessing.
+## DXF recognition rules
+- Prefer structural DXF data: INSERT block, layer, insertion X/Y/Z, rotation.
+- Current 1013 Robot evidence includes layer `010_ROBOT`, Robot-like block names such as `R-2000...`, `KR...`, `ROBOT`, and verified block `DTL0033`.
+- Track Robot detection uses track/rail/7th-axis keywords.
+- Safe Fence detection uses explicit fence/safety/SF block/layer names. If an area has explicit Fence INSERTs, prefer them. Otherwise use Fence-layer LINE/LWPOLYLINE segments as fallback.
+- Preserve factory CAD coordinates; do not translate the whole factory to `(0,0)`.
 
-For explicit resource placement, the script must be deterministic, repeatable, idempotent where practical, and must report failures instead of silently placing a resource at a suspicious coordinate.
+## Verified MID_MAIN rules
+Upper group (`Y > -1975000`): BM02, BM01, FM07, FM05, FM04, FM03, FM02, FM01 using the verified station-X references already encoded in the script.
+
+Lower group (`Y <= -1975000`): BM05, BM06, BM07, BM08, BM09, BM10, BM12 using the verified station-X references already encoded in the script.
+
+Bare CAD labels `R01`, `R02`, etc. are matched one-to-one within the assigned station by nearest XY distance up to 3000 mm. Never reuse one CAD label or one robot number in the same station. If matching is ambiguous/unavailable, retain deterministic numeric fallback naming rather than guessing.
+
+## Safety / robustness rules
+- Reject binary DXF; require ASCII DXF for the built-in parser.
+- Ignore entities explicitly marked PaperSpace (`67=1`).
+- Repair obviously corrupt 2D Robot Z values only when `|Z| > 10000 mm`, using configured default Z=0.
+- Skip existing named Frames/resources on repeated runs where practical.
+- Keep the Robot template and Fence template at `(0,0,0)` by default for inspection.
+- Track Robot Frames currently receive the Robot arm only; do not invent a rail/7th-axis resource.
+- Fence LWPOLYLINE bulges may be treated as straight chords unless a later verified requirement adds arc handling.
+
+## Out of scope
+Do not expand the final goal into automatic robot-model guessing, arbitrary resource mapping, kinematics authoring, TCP/tool setup, collision checking, path planning, weld operations, cycle-time simulation, or full digital-twin automation unless the user explicitly changes scope again.
+
+## Development principle
+The user wants the final operational workflow to be **one pasteable Process Simulate .NET Script**. Supporting Python utilities and older split scripts may remain for debugging/reference, but they are not the primary final workflow.
