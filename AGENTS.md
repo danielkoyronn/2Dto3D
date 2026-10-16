@@ -20,6 +20,7 @@ The project is NOT intended to guess arbitrary Process Simulate resources or ful
 9. Convert static factory environment geometry (fence, floor, wall, column, platform) from 2D CAD to 3D STEP.
 10. Validate CAD coordinates against Process Simulate frame coordinates.
 11. When explicitly configured by the user, batch-place a known articulated COJT robot package on verified robot Frames and align its actual `Robot.Baseframe` to the target Frame. Do not infer the robot model automatically.
+12. Apply user-verified CAD-text correction rules (for example MID_MAIN BM/FM station maps and bare R labels) as a deterministic post-processing stage, preserving original values for audit and regenerating downstream frame data/scripts from the corrected table.
 
 ## Explicitly out of scope
 Do NOT make these core project goals:
@@ -36,7 +37,7 @@ Do NOT make these core project goals:
 CAD is the master layout.
 Process Simulate is the master simulation environment.
 
-Automate repetitive CAD interpretation, frame preparation, and explicitly approved repetitive placement. Keep engineering decisions and Process-native simulation work in Process Simulate.
+Automate repetitive CAD interpretation, verified frame correction, frame preparation, and explicitly approved repetitive placement. Keep engineering decisions and Process-native simulation work in Process Simulate.
 
 ## Coordinate rules
 - Preserve original factory CAD coordinates. Do not move the whole factory to (0,0) merely for convenience.
@@ -45,10 +46,12 @@ Automate repetitive CAD interpretation, frame preparation, and explicitly approv
 - Rz should come from block/entity rotation or another deterministic CAD rule whenever possible.
 - Do not guess Z/Rx/Ry from 2D CAD. These require explicit configuration or Process/engineering reference data.
 - Always provide a visual validation layer/output so detected frames can be checked before use.
+- If an audited correction stage repairs clearly corrupt 2D-derived data, preserve the original value and record the correction source/remark in the output table.
 - For batch robot placement, move the COJT root as one unit and preserve the package's internal links/joints. Align the package's real `Robot.Baseframe` to the target Frame and validate residual position/angle error.
 
 ## Development priorities
 P0: DXF -> robot/base frames -> visual frame check -> CSV
+P0: Verified MID_MAIN BM/FM station/robot-label correction -> corrected CSV -> regenerated PS frame script
 P1: Improve fixture/TTR/conveyor frame detection
 P1: Batch Process Simulate Native Frame creation workflow
 P1: Explicit batch placement of a user-approved robot COJT package on verified robot Frames
@@ -58,5 +61,7 @@ P3: GUI only after the core pipeline is reliable
 
 ## Acceptance principle
 A feature is worth adding only if it clearly reduces manual factory-building time without reducing engineering accuracy in Process Simulate.
+
+For correction stages, prefer deterministic rules that were explicitly verified against CAD. If a text-to-frame match is ambiguous, preserve the original identifier rather than guessing.
 
 For explicit resource placement, the script must be deterministic, repeatable, idempotent where practical, and must report failures instead of silently placing a resource at a suspicious coordinate.
