@@ -1,69 +1,69 @@
 # Project Specification
 
-## User workflow
+## Current source of truth
 
-### Before
-Open CAD -> locate equipment -> find center -> read/copy coordinates -> determine direction ->
-manually name/create frames -> manually reproduce fence/environment -> finally start resource placement.
+The current baseline is the user-verified Process Simulate 2512 `.NET Script`:
 
-### Target workflow
-DXF -> Analyze -> Frames + Frame Check + Environment STEP -> Process Simulate ->
-manual/native resource placement and simulation engineering.
+`process_simulate/Create_FACTORY_RobotBase_Frames_PS2512_BatchRobot.cs`
 
-## Primary outputs
+Do not replace this working workflow with the previous direct-DXF / Fence all-in-one experiment unless the user explicitly requests that change again.
 
-### 1. Frame table
-Recommended columns:
-- Name
-- Type
-- Line
-- Station
-- X
-- Y
-- Z
-- Rx
-- Ry
-- Rz
-- SourceLayer
-- SourceBlock
-- Confidence
-- Remark
+## Current workflow
 
-### 2. Frame check
-A CAD-derived visual output containing:
-- frame origin marker
-- frame name
-- X/Y direction
-- source equipment outline
-- warnings for ambiguous detections
+1. Create the approved factory/line base Frames.
+2. Create the approved Robot Frames using the embedded coordinate/orientation table.
+3. Find target Frames by the naming token `_ROBOT_`.
+4. Reuse the explicitly approved complete articulated Robot COJT package.
+5. Insert one Robot resource for every Robot Frame.
+6. Align the real `Robot.Baseframe` to the target Frame by moving the complete COJT root as one unit.
+7. Verify residual position and angular error.
+8. Skip duplicate generated instances.
+9. Skip suspicious target Z coordinates instead of placing a Robot at a corrupted position.
 
-### 3. Factory environment STEP
-Static geometry only:
-- safety fence
-- floor
-- wall
-- column
-- platform
-- optional static placeholders
+## Naming
 
-### 4. Validation report
-Compare reference Process Simulate frame data with CAD-derived frames and report positional/rotational deviation.
+Robot target Frames include forms such as:
 
-## Recommended processing pipeline
-1. Load DXF.
-2. Read units and preserve global coordinates.
-3. Recursively resolve INSERT/BLOCK transforms.
-4. Collect geometry, layer, block, text and rotation metadata.
-5. Detect equipment candidates.
-6. Determine base/reference center.
-7. Determine orientation.
-8. Associate nearby station/equipment labels where reliable.
-9. Apply naming rules.
-10. Export frame table.
-11. Render/check frames against CAD.
-12. Build static environment geometry and export STEP.
-13. Optionally generate Process Simulate frame-creation script/data.
+- `<AREA>_ROBOT_<NNN>`
+- `<AREA>_TRACK_ROBOT_<NNN>`
+- existing approved special-area names already embedded in the script
 
-## Validation
-Start with one small production area (for example one OP with 1-3 robots, fixture/TTR and a small fence section).
-Compare generated frames against a manually verified Process Simulate study before scaling to a full line/factory.
+Generated Robot instances use:
+
+`AUTO_<FRAME_NAME>_KR210_R2700`
+
+## Approved Robot resource
+
+`D:\WEDING\MOVING\work261007\Library\BSR_OP10_R01_KR210_R2700.cojt`
+
+The COJT must remain a complete articulated resource. Do not substitute only the inner JT because Robot joints/Baseframe would be lost.
+
+## Placement rule
+
+For each Robot Frame:
+
+- insert the complete COJT resource;
+- obtain the inserted `TxRobot`;
+- obtain `robot.Baseframe`;
+- calculate the Baseframe transform relative to the inserted COJT root;
+- move the inserted root so the Robot Baseframe coincides with the target Frame;
+- reject placement if residual error exceeds the configured tolerance.
+
+Current validation tolerance:
+
+- position: `0.1 mm`
+- rotation: `0.01 deg`
+
+## Track Robot scope
+
+`TRACK_ROBOT` Frames currently receive the Robot arm only. Automatic rail / seventh-axis creation is not part of the current verified baseline.
+
+## Coordinate guard
+
+Do not place a Robot when the target Frame has a non-finite Z or `|Z| > 10000 mm`. This protects against known corrupted source values such as the abnormal MID_MAIN Z record.
+
+## Development rule
+
+New work must extend this verified script incrementally. Preserve existing Frame creation and Robot placement unless a change is specifically requested and revalidated in Process Simulate.
+
+Likely next stages may include Safe Fence placement or additional resource types, but they should be added on top of this working baseline rather than replacing it.
