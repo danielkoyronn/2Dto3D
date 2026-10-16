@@ -8,7 +8,10 @@ manually name/create frames -> manually reproduce fence/environment -> finally s
 
 ### Target workflow
 DXF -> Analyze -> Frames + Frame Check + Environment STEP -> Process Simulate ->
-manual/native resource placement and simulation engineering.
+optionally batch-place explicitly approved robot resources on verified robot Frames ->
+manual/native simulation engineering.
+
+The batch-placement stage is deliberately narrow: it may reuse a known user-supplied COJT package on already verified robot Frames, but it must not guess which robot model belongs to which CAD symbol.
 
 ## Primary outputs
 
@@ -49,6 +52,15 @@ Static geometry only:
 ### 4. Validation report
 Compare reference Process Simulate frame data with CAD-derived frames and report positional/rotational deviation.
 
+### 5. Optional Process Simulate batch placement script
+For explicitly approved robot resources only:
+- read verified robot Frames
+- insert the configured complete COJT package
+- move the COJT root as one unit
+- align the actual Robot Baseframe to the target Frame
+- validate residual position/angle error
+- skip/report suspicious coordinates or duplicate generated instances
+
 ## Recommended processing pipeline
 1. Load DXF.
 2. Read units and preserve global coordinates.
@@ -63,7 +75,11 @@ Compare reference Process Simulate frame data with CAD-derived frames and report
 11. Render/check frames against CAD.
 12. Build static environment geometry and export STEP.
 13. Optionally generate Process Simulate frame-creation script/data.
+14. After Frames are verified, optionally batch-place a user-approved robot COJT package on robot Frames.
+15. Keep model selection, kinematics, TCP/tool, collision, operations and path planning as explicit Process Simulate engineering work unless separately approved.
 
 ## Validation
 Start with one small production area (for example one OP with 1-3 robots, fixture/TTR and a small fence section).
 Compare generated frames against a manually verified Process Simulate study before scaling to a full line/factory.
+
+For batch robot placement, first run in dry-run mode, then test on one line/small cell before populating the full factory.
