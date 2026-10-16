@@ -2,11 +2,9 @@
 
 ## Purpose
 
-The verified frame-generation script already creates factory/line Frames and robot base Frames, then demonstrates importing one complete articulated COJT robot and aligning its real `Robot.Baseframe` to one target Frame.
+The verified frame-generation workflow creates robot base Frames and then reuses one approved articulated COJT robot package on those verified Frames.
 
-The next step is repetitive placement: reuse that same approved COJT package on every generated robot Frame.
-
-## Script
+The current placement script is:
 
 `process_simulate/BatchPlaceRobotOnFrames.cs`
 
@@ -24,6 +22,21 @@ The next step is repetitive placement: reuse that same approved COJT package on 
 10. Rejects suspicious target Z values instead of placing a robot far away.
 11. Reports success / skip / fail counts.
 
+## Corrected MID_MAIN Frames
+
+Before placement, run:
+
+`python scripts/apply_mid_main_station_corrections.py`
+
+This applies the verified BM/FM station rules and unique nearby bare `Rxx` labels, writes `FACTORY_RobotFrames_Corrected.csv`, and generates `process_simulate/FactoryRobotFrames_Corrected.cs`.
+
+Corrected names deliberately keep the `_ROBOT_` token, for example:
+
+- `MID_MAIN_BM02_ROBOT_R01`
+- `MID_MAIN_FM05_ROBOT_R03`
+
+Therefore the existing batch placement script discovers corrected Frames without another naming change.
+
 ## Current resource configuration
 
 ```csharp
@@ -31,7 +44,7 @@ private const string RobotPackagePath =
     @"D:\WEDING\MOVING\work261007\Library\BSR_OP10_R01_KR210_R2700.cojt";
 ```
 
-The script currently uses the **same KR210_R2700 COJT package for every matching robot Frame**. This is intentional for the first batch-placement test. It does not infer different robot models from CAD.
+The script currently uses the same **KR210_R2700 COJT package** for every matching robot Frame. This is intentional for the first batch-placement test. It does not infer different robot models from CAD.
 
 ## Track robot behavior
 
@@ -45,16 +58,16 @@ When the Safe Fence file is supplied, add it as a separate deterministic import/
 
 ## Test sequence
 
-Recommended first test:
-
-1. Open a copy of the Process Simulate study.
-2. Ensure the generated Frames already exist.
-3. Set `DryRun = true` and run the script; review target Frame names/count.
-4. Set `DryRun = false`.
-5. Test a reduced study or one line first if memory/load time is a concern.
-6. Verify several robot Baseframes manually against their target Frames.
-7. Only then run the full factory batch.
+1. Generate the DXF audit CSVs.
+2. Run `scripts/apply_mid_main_station_corrections.py`.
+3. Review the corrected CSV, especially BM/FM station and `RobotLabel` columns.
+4. Open a copy/clean Process Simulate study.
+5. Run generated `FactoryRobotFrames_Corrected.cs`.
+6. Set `DryRun = true` in `BatchPlaceRobotOnFrames.cs` and review target count/names.
+7. Set `DryRun = false`.
+8. Verify several robot Baseframes manually against their target Frames.
+9. Only then run the full factory batch.
 
 ## Known data guard
 
-The uploaded frame-generation source contains one obviously suspicious robot Z value (`MID_MAIN_ROBOT_014` is many kilometers from the normal factory Z range). The batch script therefore rejects robot target Frames with `abs(Z) > 10000 mm` and reports them instead of silently placing a robot there.
+The old uploaded frame-generation source contained one obviously suspicious robot Z value (`MID_MAIN_ROBOT_014` was many kilometers from the normal factory Z range). The correction pipeline preserves that raw value as `OriginalZ`, repairs the generated Process frame to the configured 2D robot-base default Z=0 mm, and records the repair. The batch placement script independently keeps its `abs(Z) > 10000 mm` guard as a second layer of protection.
